@@ -5,11 +5,16 @@
 
 void incrementManyTimes(int& counter , int times , std::mutex& counterMutex)
 {
+    int localCounter{};
+
     for (int i = 0; i < times; ++i)
     {
-        std::lock_guard<std::mutex> lock(counterMutex);
-        ++counter;
+    
+        ++localCounter;
     }
+
+    std::lock_guard<std::mutex> lock(counterMutex);
+    counter += localCounter;
 }
 
 int main()
@@ -39,6 +44,6 @@ int main()
 
     std::cout << "Expected: " << threadCount * incrementsPerThread << "\n";
     std::cout << "Actual:   " << counter << "\n";
-
+    
     return 0;
 }
