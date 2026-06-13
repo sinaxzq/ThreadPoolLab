@@ -1,31 +1,54 @@
-#include <atomic>
+#include <chrono>
 #include <iostream>
+#include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
-void incrementManyTimes(std::atomic<int>& counter , int times)
+struct WorkResult
 {
-    for (int i = 0; i < times; ++i)
-    {
-        ++counter;
-    }
+    int taskId{};
+    std::string message;
+    long long elapsedMs{};
+};
+
+void doWork(int taskId , std::vector<WorkResult>& results , std::mutex& resultsMutex)
+{
+    const auto start = std::chrono::steady_clock::now();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500 + taskId * 100));
+
+    const auto end = std::chrono::steady_clock::now();
+
+    const auto elapsedMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+    WorkResult result{
+        taskId,
+        "task " + std::to_string(taskId) + " finished",
+        elapsedMs
+    };
+
+    std::lock_guard<std::mutex> lock(resultsMutex);
+    results.push_back(result);
 }
 
 int main()
 {
-    std::atomic<int> counter{ 0 };
+    const int taskCount = 8;
 
-    const int threadCount = 8;
-    const int incrementsPerThread = 100000;
+    std::vector<WorkResult> results;
+    std::mutex resultsMutex;
 
     std::vector<std::thread> threads;
 
-    for (int i = 0; i < threadCount; ++i)
+    for (int i = 0; i < taskCount; ++i)
     {
         threads.emplace_back(
-            incrementManyTimes ,
-            std::ref(counter) ,
-            incrementsPerThread
+            doWork ,
+            i ,
+            std::ref(results) ,
+            std::ref(resultsMutex)
         );
     }
 
@@ -34,8 +57,14 @@ int main()
         thread.join();
     }
 
-    std::cout << "Expected: " << threadCount * incrementsPerThread << "\n";
-    std::cout << "Actual:   " << counter << "\n";
+    std::cout << "Results count: " << results.size() << "\n";
+
+    for (const WorkResult& result : results)
+    {
+        std::cout << result.taskId << " | "
+            << result.message << " | "
+            << result.elapsedMs << " ms\n";
+    }
 
     return 0;
 }
