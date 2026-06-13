@@ -9,7 +9,7 @@ void incrementManyTimes(int& counter , int times , std::mutex& counterMutex)
 
     for (int i = 0; i < times; ++i)
     {
-    
+
         ++localCounter;
     }
 
@@ -44,6 +44,6 @@ int main()
 
     std::cout << "Expected: " << threadCount * incrementsPerThread << "\n";
     std::cout << "Actual:   " << counter << "\n";
-    
+
     return 0;
 }
