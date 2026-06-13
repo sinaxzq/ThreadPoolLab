@@ -1,14 +1,26 @@
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
+std::mutex coutMutex;
+
+void safePrint(const std::string& message)
+{
+    std::lock_guard<std::mutex> lock(coutMutex);
+
+    std::cout << message << "\n";
+}
+
 void doWork(const std::string& name)
 {
+    safePrint(name + " started");
+
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    std::cout << name << " finished\n";
+    safePrint(name + " finished");
 }
 
 int main()
@@ -17,9 +29,16 @@ int main()
 
     std::vector<std::thread> threads;
 
+    safePrint("Before A");
     threads.emplace_back(doWork , "task A");
+
+    safePrint("Before B");
     threads.emplace_back(doWork , "task B");
+
+    safePrint("Before C");
     threads.emplace_back(doWork , "task C");
+
+    safePrint("Before join loop");
 
     for (std::thread& thread : threads)
     {
@@ -31,7 +50,7 @@ int main()
     const auto elapsedMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    std::cout << "Total: " << elapsedMs << " ms\n";
+    safePrint("Total: " + std::to_string(elapsedMs) + " ms");
 
     return 0;
 }
