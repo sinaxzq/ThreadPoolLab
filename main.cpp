@@ -1,26 +1,19 @@
+#include <atomic>
 #include <iostream>
-#include <mutex>
 #include <thread>
 #include <vector>
 
-void incrementManyTimes(int& counter , int times , std::mutex& counterMutex)
+void incrementManyTimes(std::atomic<int>& counter , int times)
 {
-    int localCounter{};
-
     for (int i = 0; i < times; ++i)
     {
-
-        ++localCounter;
+        ++counter;
     }
-
-    std::lock_guard<std::mutex> lock(counterMutex);
-    counter += localCounter;
 }
 
 int main()
 {
-    int counter = 0;
-    std::mutex counterMutex;
+    std::atomic<int> counter{ 0 };
 
     const int threadCount = 8;
     const int incrementsPerThread = 100000;
@@ -32,8 +25,7 @@ int main()
         threads.emplace_back(
             incrementManyTimes ,
             std::ref(counter) ,
-            incrementsPerThread ,
-            std::ref(counterMutex)
+            incrementsPerThread
         );
     }
 
