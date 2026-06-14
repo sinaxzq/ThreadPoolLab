@@ -10,142 +10,161 @@
 
 struct WorkResult
 {
-    int taskId{};
-    int workerId{};
-    std::string message;
-    long long elapsedMs{};
+	int taskId{};
+	int workerId{};
+	std::string message;
+	long long elapsedMs{};
 };
 
 class ThreadPool
 {
 public:
-    explicit ThreadPool(int workerCount)
-    {
-        for (int workerId = 0; workerId < workerCount; ++workerId)
-        {
-            workers.emplace_back(&ThreadPool::workerLoop , this , workerId);
-        }
-    }
+	explicit ThreadPool(int workerCount)
+	{
+		for (int workerId = 0; workerId < workerCount; ++workerId)
+		{
+			workers.emplace_back(&ThreadPool::workerLoop , this , workerId);
+		}
+	}
 
-    ~ThreadPool()
-    {
-        {
-            std::lock_guard<std::mutex> lock(taskMutex);
-            stopRequested = true;
-        }
+	~ThreadPool()
+	{
+		{
+			std::lock_guard<std::mutex> lock(taskMutex);
+			stopRequested = true;
+		}
 
-        taskCv.notify_all();
+		taskCv.notify_all();
 
-        for (std::thread& worker : workers)
-        {
-            if (worker.joinable())
-            {
-                worker.join();
-            }
-        }
-    }
+		for (std::thread& worker : workers)
+		{
+			if (worker.joinable())
+			{
+				worker.join();
+			}
+		}
+	}
 
-    void submit(std::function<void(int)> task)
-    {
-        {
-            std::lock_guard<std::mutex> lock(taskMutex);
-            taskQueue.push(std::move(task));
-        }
+	ThreadPool& operator=(const ThreadPool&) = delete;
+	ThreadPool(const ThreadPool&) = delete;
 
-        taskCv.notify_one();
-    }
+	ThreadPool(ThreadPool&&) = delete;
+	ThreadPool& operator=(ThreadPool&&) = delete;
+
+	bool submit(std::function<void(int)> task)
+	{
+		{
+			std::lock_guard<std::mutex> lock(taskMutex);
+
+			if (stopRequested)
+			{
+				return false;
+			}
+
+			taskQueue.push(std::move(task));
+		}
+
+		taskCv.notify_one();
+
+		return true;
+	}
 
 private:
-    std::vector<std::thread> workers;
-    std::queue<std::function<void(int)>> taskQueue;
-    std::mutex taskMutex;
-    std::condition_variable taskCv;
-    bool stopRequested = false;
+	std::vector<std::thread> workers;
+	std::queue<std::function<void(int)>> taskQueue;
+	std::mutex taskMutex;
+	std::condition_variable taskCv;
+	bool stopRequested = false;
 
-    void workerLoop(int workerId)
-    {
-        while (true)
-        {
-            std::function<void(int)> task;
+	void workerLoop(int workerId)
+	{
+		while (true)
+		{
+			std::function<void(int)> task;
 
-            {
-                std::unique_lock<std::mutex> lock(taskMutex);
+			{
+				std::unique_lock<std::mutex> lock(taskMutex);
 
-                taskCv.wait(lock , [this]()
+				taskCv.wait(lock , [this]()
  {
-     return !taskQueue.empty() || stopRequested;
-                });
+	 return !taskQueue.empty() || stopRequested;
+				});
 
-                if (taskQueue.empty() && stopRequested)
-                {
-                    break;
-                }
+				if (taskQueue.empty() && stopRequested)
+				{
+					break;
+				}
 
-                task = std::move(taskQueue.front());
-                taskQueue.pop();
-            }
+				task = std::move(taskQueue.front());
+				taskQueue.pop();
+			}
 
-            task(workerId);
-        }
-    }
+			task(workerId);
+		}
+	}
 };
 
 void processTask(int taskId , int workerId , std::vector<WorkResult>& results)
 {
-    const auto start = std::chrono::steady_clock::now();
+	const auto start = std::chrono::steady_clock::now();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(300 + taskId * 25));
+	std::this_thread::sleep_for(std::chrono::milliseconds(300 + taskId * 25));
 
-    const auto end = std::chrono::steady_clock::now();
+	const auto end = std::chrono::steady_clock::now();
 
-    const auto elapsedMs =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+	const auto elapsedMs =
+		std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    results[taskId] = WorkResult{
-        taskId,
-        workerId,
-        "task " + std::to_string(taskId) + " done",
-        elapsedMs
-    };
+	results[taskId] = WorkResult{
+		taskId,
+		workerId,
+		"task " + std::to_string(taskId) + " done",
+		elapsedMs
+	};
 }
 
 int main()
 {
-    const int taskCount = 20;
-    const int workerCount = 4;
+	const int taskCount = 20;
+	const int workerCount = 4;
 
-    std::vector<WorkResult> results(taskCount);
+	std::vector<WorkResult> results(taskCount);
 
-    const auto totalStart = std::chrono::steady_clock::now();
+	const auto totalStart = std::chrono::steady_clock::now();
 
-    {
-        ThreadPool pool(workerCount);
+	{
+		ThreadPool pool(workerCount);
 
-        for (int taskId = 0; taskId < taskCount; ++taskId)
-        {
-            pool.submit([taskId , &results](int workerId)
- {
-     processTask(taskId , workerId , results);
-            });
-        }
-    }
+		for (int taskId = 0; taskId < taskCount; ++taskId)
+		{
+			const bool accepted = pool.submit([taskId , &results](int workerId)
+  {
+	  processTask(taskId , workerId , results);
+	 });
 
-    const auto totalEnd = std::chrono::steady_clock::now();
+			if (!accepted)
+			{
+				std::cout << "Task " << taskId << " was rejected\n";
+			}
+		}
+	}
 
-    const auto totalElapsedMs =
-        std::chrono::duration_cast<std::chrono::milliseconds>(totalEnd - totalStart).count();
+	const auto totalEnd = std::chrono::steady_clock::now();
 
-    std::cout << "Results count: " << results.size() << "\n";
+	const auto totalElapsedMs =
+		std::chrono::duration_cast<std::chrono::milliseconds>(totalEnd - totalStart).count();
 
-    for (const WorkResult& result : results)
-    {
-        std::cout << "task " << result.taskId
-            << " | worker " << result.workerId
-            << " | " << result.message
-            << " | " << result.elapsedMs << " ms\n";
-    }
+	std::cout << "Results count: " << results.size() << "\n";
 
-    std::cout << "Total: " << totalElapsedMs << " ms\n";
+	for (const WorkResult& result : results)
+	{
+		std::cout << "task " << result.taskId
+			<< " | worker " << result.workerId
+			<< " | " << result.message
+			<< " | " << result.elapsedMs << " ms\n";
+	}
 
-    return 0;
+	std::cout << "Total: " << totalElapsedMs << " ms\n";
+
+	return 0;
 }
