@@ -11,6 +11,7 @@
 struct WorkResult
 {
     int taskId{};
+    int workerId{};
     std::string message;
     long long elapsedMs{};
 };
@@ -20,9 +21,9 @@ class ThreadPool
 public:
     explicit ThreadPool(int workerCount)
     {
-        for (int i = 0; i < workerCount; ++i)
+        for (int workerId = 0; workerId < workerCount; ++workerId)
         {
-            workers.emplace_back(&ThreadPool::workerLoop , this);
+            workers.emplace_back(&ThreadPool::workerLoop , this , workerId);
         }
     }
 
@@ -44,7 +45,7 @@ public:
         }
     }
 
-    void submit(std::function<void()> task)
+    void submit(std::function<void(int)> task)
     {
         {
             std::lock_guard<std::mutex> lock(taskMutex);
@@ -56,16 +57,16 @@ public:
 
 private:
     std::vector<std::thread> workers;
-    std::queue<std::function<void()>> taskQueue;
+    std::queue<std::function<void(int)>> taskQueue;
     std::mutex taskMutex;
     std::condition_variable taskCv;
     bool stopRequested = false;
 
-    void workerLoop()
+    void workerLoop(int workerId)
     {
         while (true)
         {
-            std::function<void()> task;
+            std::function<void(int)> task;
 
             {
                 std::unique_lock<std::mutex> lock(taskMutex);
@@ -84,12 +85,12 @@ private:
                 taskQueue.pop();
             }
 
-            task();
+            task(workerId);
         }
     }
 };
 
-void processTask(int taskId , std::vector<WorkResult>& results)
+void processTask(int taskId , int workerId , std::vector<WorkResult>& results)
 {
     const auto start = std::chrono::steady_clock::now();
 
@@ -102,6 +103,7 @@ void processTask(int taskId , std::vector<WorkResult>& results)
 
     results[taskId] = WorkResult{
         taskId,
+        workerId,
         "task " + std::to_string(taskId) + " done",
         elapsedMs
     };
@@ -121,9 +123,9 @@ int main()
 
         for (int taskId = 0; taskId < taskCount; ++taskId)
         {
-            pool.submit([taskId , &results]()
+            pool.submit([taskId , &results](int workerId)
  {
-     processTask(taskId , results);
+     processTask(taskId , workerId , results);
             });
         }
     }
@@ -138,6 +140,7 @@ int main()
     for (const WorkResult& result : results)
     {
         std::cout << "task " << result.taskId
+            << " | worker " << result.workerId
             << " | " << result.message
             << " | " << result.elapsedMs << " ms\n";
     }
