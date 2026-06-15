@@ -2,7 +2,6 @@
 
 #include <ThreadPool.h>
 
-
 void testDestructorWaitsForSubmittedTasks()
 {
 	constexpr int taskCount = 20;
@@ -37,11 +36,24 @@ void testThreadPoolIsNonCopyableAndNonMovable()
 	static_assert(!std::is_move_assignable_v<ThreadPool>);
 }
 
+void testSumbitRejectsTasksAfterShutdown()
+{
+	ThreadPool pool(2);
+
+	pool.shutdown();
+
+	const bool accepted = pool.submit([](int)
+{
+   });
+
+	assert(!accepted);
+}
 
 int main()
 {
 	testDestructorWaitsForSubmittedTasks();
 	testThreadPoolIsNonCopyableAndNonMovable();
+	testSumbitRejectsTasksAfterShutdown();
 
 	return 0;
 }

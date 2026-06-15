@@ -21,6 +21,8 @@ public:
     ~ThreadPool();
 
     bool submit(std::function<void(int)> task);
+    
+    void shutdown();
 
 private:
     std::vector<std::thread> workers;

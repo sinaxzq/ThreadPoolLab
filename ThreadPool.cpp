@@ -12,20 +12,7 @@ ThreadPool::ThreadPool(int workerCount)
 
 ThreadPool::~ThreadPool()
 {
-    {
-        std::lock_guard<std::mutex> lock(taskMutex);
-        stopRequested = true;
-    }
-
-    taskCv.notify_all();
-
-    for (std::thread& worker : workers)
-    {
-        if (worker.joinable())
-        {
-            worker.join();
-        }
-    }
+    shutdown();
 }
 
 bool ThreadPool::submit(std::function<void(int)> task)
@@ -69,5 +56,29 @@ void ThreadPool::workerLoop(int workerId)
         }
 
         task(workerId);
+    }
+}
+
+void ThreadPool::shutdown()
+{
+    {
+        std::lock_guard<std::mutex> lock(taskMutex);
+
+        if (stopRequested)
+        {
+            return;
+        }
+
+        stopRequested = true;
+    }
+
+    taskCv.notify_all();
+
+    for (auto& worker : workers)
+    {
+        if (worker.joinable())
+        {
+            worker.join();
+        }
     }
 }
