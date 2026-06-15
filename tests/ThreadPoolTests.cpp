@@ -150,6 +150,33 @@ void testSubmitFuturePropagatesException()
 	assert(caught);
 }
 
+void testSumbitFutureThrowsAfterShutdown()
+{
+	ThreadPool pool(1);
+	
+	pool.shutdown();
+
+	bool reject = false;
+
+	try
+	{
+		auto future = pool.submitFuture([](int workerId)
+		{
+			(void) workerId;
+
+			return 5;
+		});
+
+		(void) future;
+	}
+	catch (const std::runtime_error&)
+	{
+		reject = true;
+	}
+
+	assert(reject);
+}
+
 int main()
 {
 	testDestructorWaitsForSubmittedTasks();
@@ -159,6 +186,7 @@ int main()
 	testShutdownCanBeCalledMultipleTimes();
 	testSubmitFutureReturnsTaskResult();
 	testSubmitFuturePropagatesException();
+	testSumbitFutureThrowsAfterShutdown();
 
 	return 0;
 }
