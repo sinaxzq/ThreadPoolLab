@@ -84,12 +84,27 @@ void testTasksRunInParallel()
 assert(elapsedMs < maxExpectedParallelMs);
 }
 
+void testShutdownCanBeCalledMultipleTimes()
+{
+	ThreadPool pool(4);
+
+	pool.shutdown();
+	pool.shutdown();
+
+	const bool accepted = pool.submit([](int workerId)
+{
+	(void) workerId;
+   });
+
+	assert(!accepted);
+}
 int main()
 {
 	testDestructorWaitsForSubmittedTasks();
 	testThreadPoolIsNonCopyableAndNonMovable();
 	testSumbitRejectsTasksAfterShutdown();
 	testTasksRunInParallel();
-	
+	testShutdownCanBeCalledMultipleTimes();
+
 	return 0;
 }
