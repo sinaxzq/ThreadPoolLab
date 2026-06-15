@@ -49,11 +49,47 @@ void testSumbitRejectsTasksAfterShutdown()
 	assert(!accepted);
 }
 
+void testTasksRunInParallel()
+{
+	constexpr int taskCount = 4;
+	constexpr int taskDurationMs = 200;
+	constexpr int maxExpectedParallelMs = taskDurationMs * (taskCount - 1);
+
+	std::atomic<int> completedTasks{};
+
+	const auto start = std::chrono::steady_clock::now();
+	{
+		ThreadPool pool(4);
+
+		for (int task{}; task < taskCount; task++)
+		{
+			const bool accepted = pool.submit(
+				[&completedTasks, taskDurationMs](int workerId)
+	{
+		(void) workerId;
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(taskDurationMs));
+			++completedTasks;
+				});
+
+			assert(accepted);
+		}
+	}
+
+	const auto end = std::chrono::steady_clock::now();
+
+	const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+	
+	assert(completedTasks == taskCount);
+assert(elapsedMs < maxExpectedParallelMs);
+}
+
 int main()
 {
 	testDestructorWaitsForSubmittedTasks();
 	testThreadPoolIsNonCopyableAndNonMovable();
 	testSumbitRejectsTasksAfterShutdown();
-
+	testTasksRunInParallel();
+	
 	return 0;
 }
