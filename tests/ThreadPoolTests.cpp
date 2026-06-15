@@ -1,6 +1,7 @@
 #include <cassert>
 #include <string>
 #include <ThreadPool.h>
+#include <stdexcept>
 
 void testDestructorWaitsForSubmittedTasks()
 {
@@ -123,6 +124,32 @@ void testSubmitFutureReturnsTaskResult()
 	assert(result == "worker 0");
 }
 
+void testSubmitFuturePropagatesException()
+{
+	ThreadPool pool(4);
+
+	auto future = pool.submitFuture([](int workerId)
+	{
+		(void) workerId;
+
+		throw std::runtime_error("boom");
+		return 5;
+	});
+
+	bool caught = false;
+
+	try
+	{
+		future.get();
+	}
+	catch (const std::runtime_error&)
+	{
+		caught = true;
+	}
+
+	assert(caught);
+}
+
 int main()
 {
 	testDestructorWaitsForSubmittedTasks();
@@ -131,6 +158,7 @@ int main()
 	testTasksRunInParallel();
 	testShutdownCanBeCalledMultipleTimes();
 	testSubmitFutureReturnsTaskResult();
+	testSubmitFuturePropagatesException();
 
 	return 0;
 }
