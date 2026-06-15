@@ -9,3 +9,16 @@ add_executable(ThreadPoolLab
     main.cpp
     ThreadPool.cpp
 )
+
+add_executable(ThreadPoolTests
+    tests/ThreadPoolTests.cpp
+    ThreadPool.cpp
+)
+
+target_include_directories(ThreadPoolTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+enable_testing()
+
+add_test(NAME ThreadPoolTests COMMAND ThreadPoolTests)
