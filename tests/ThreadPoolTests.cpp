@@ -1,5 +1,5 @@
 #include <cassert>
-
+#include <string>
 #include <ThreadPool.h>
 
 void testDestructorWaitsForSubmittedTasks()
@@ -13,10 +13,11 @@ void testDestructorWaitsForSubmittedTasks()
 		for (int task{}; task < taskCount; task++)
 		{
 			const bool accepted = pool.submit(
-				[&completedTasks](int workerId) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(10));
-					++completedTasks;
-				});
+				[&completedTasks](int workerId)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				++completedTasks;
+			});
 
 			assert(accepted);
 		}
@@ -43,8 +44,8 @@ void testSumbitRejectsTasksAfterShutdown()
 	pool.shutdown();
 
 	const bool accepted = pool.submit([](int)
-{
-   });
+	{
+	});
 
 	assert(!accepted);
 }
@@ -64,13 +65,13 @@ void testTasksRunInParallel()
 		for (int task{}; task < taskCount; task++)
 		{
 			const bool accepted = pool.submit(
-				[&completedTasks, taskDurationMs](int workerId)
-	{
-		(void) workerId;
+				[&completedTasks , taskDurationMs](int workerId)
+			{
+				(void) workerId;
 
-			std::this_thread::sleep_for(std::chrono::milliseconds(taskDurationMs));
-			++completedTasks;
-				});
+				std::this_thread::sleep_for(std::chrono::milliseconds(taskDurationMs));
+				++completedTasks;
+			});
 
 			assert(accepted);
 		}
@@ -79,9 +80,9 @@ void testTasksRunInParallel()
 	const auto end = std::chrono::steady_clock::now();
 
 	const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-	
+
 	assert(completedTasks == taskCount);
-assert(elapsedMs < maxExpectedParallelMs);
+	assert(elapsedMs < maxExpectedParallelMs);
 }
 
 void testShutdownCanBeCalledMultipleTimes()
@@ -92,12 +93,36 @@ void testShutdownCanBeCalledMultipleTimes()
 	pool.shutdown();
 
 	const bool accepted = pool.submit([](int workerId)
-{
-	(void) workerId;
-   });
+	{
+		(void) workerId;
+	});
 
 	assert(!accepted);
 }
+
+void testSubmitFutureReturnsTaskResult()
+{
+	ThreadPool pool(1);
+
+	auto future = pool.submitFuture([](int workerId)
+	{
+		(void) workerId;
+
+		return 5;
+	});
+
+	assert(future.get() == 5);
+
+	auto stringFuture = pool.submitFuture([](int workerId)
+	{
+		return std::string{ "worker " } + std::to_string(workerId);
+	});
+
+	const std::string result = stringFuture.get();
+
+	assert(result == "worker 0");
+}
+
 int main()
 {
 	testDestructorWaitsForSubmittedTasks();
@@ -105,6 +130,7 @@ int main()
 	testSumbitRejectsTasksAfterShutdown();
 	testTasksRunInParallel();
 	testShutdownCanBeCalledMultipleTimes();
+	testSubmitFutureReturnsTaskResult();
 
 	return 0;
 }

@@ -6,30 +6,63 @@
 #include <queue>
 #include <thread>
 #include <vector>
+#include <future>
+#include <memory>
+#include <stdexcept>
+#include <type_traits>
 
 class ThreadPool
 {
 public:
-    explicit ThreadPool(int workerCount);
+	explicit ThreadPool(int workerCount);
 
-    ThreadPool(const ThreadPool&) = delete;
-    ThreadPool& operator=(const ThreadPool&) = delete;
+	ThreadPool(const ThreadPool&) = delete;
+	ThreadPool& operator=(const ThreadPool&) = delete;
 
-    ThreadPool(ThreadPool&&) = delete;
-    ThreadPool& operator=(ThreadPool&&) = delete;
+	ThreadPool(ThreadPool&&) = delete;
+	ThreadPool& operator=(ThreadPool&&) = delete;
 
-    ~ThreadPool();
+	~ThreadPool();
 
-    bool submit(std::function<void(int)> task);
-    
-    void shutdown();
+	void shutdown();
+	
+	bool submit(std::function<void(int)> task);
+
+	template <typename Func> auto submitFuture(Func task) -> 
+		std::future<std::invoke_result_t<Func , int>>
+	{
+		using Result = std::invoke_result_t<Func , int>;
+
+		auto packagedTask =
+			std::make_shared<std::packaged_task<Result(int)>>(std::move(task));
+
+		std::future<Result> future = packagedTask->get_future();
+
+		{
+			std::lock_guard<std::mutex> lock(taskMutex);
+
+			if (stopRequested)
+			{
+				throw std::runtime_error("Cannot submit task after shutdown");
+			}
+
+			taskQueue.push([packagedTask](int workerId)
+			{
+				(*packagedTask)(workerId);
+			});
+		}
+
+		taskCv.notify_one();
+
+		return future;
+	}
 
 private:
-    std::vector<std::thread> workers;
-    std::queue<std::function<void(int)>> taskQueue;
-    std::mutex taskMutex;
-    std::condition_variable taskCv;
-    bool stopRequested = false;
+	std::vector<std::thread> workers;
+	std::queue<std::function<void(int)>> taskQueue;
+	std::mutex taskMutex;
+	std::condition_variable taskCv;
+	bool stopRequested = false;
 
-    void workerLoop(int workerId);
+	void workerLoop(int workerId);
 };
