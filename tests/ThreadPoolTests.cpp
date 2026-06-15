@@ -177,6 +177,24 @@ void testSumbitFutureThrowsAfterShutdown()
 	assert(reject);
 }
 
+void testSubmitFutureSupportsVoidTask()
+{
+	ThreadPool pool(1);
+	
+	std::atomic<bool> wasExecuted = false;
+
+	auto future = pool.submitFuture([&wasExecuted](int workerId)
+	{
+		(void) workerId;
+
+		wasExecuted = true;
+	});
+
+	future.get();
+
+	assert(wasExecuted);
+}
+
 int main()
 {
 	testDestructorWaitsForSubmittedTasks();
@@ -187,6 +205,7 @@ int main()
 	testSubmitFutureReturnsTaskResult();
 	testSubmitFuturePropagatesException();
 	testSumbitFutureThrowsAfterShutdown();
+	testSubmitFutureSupportsVoidTask();
 
 	return 0;
 }
