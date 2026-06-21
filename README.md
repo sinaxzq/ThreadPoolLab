@@ -1,6 +1,8 @@
 # ThreadPoolLab
 
-A small C++17 learning project that implements a basic thread pool using raw concurrency primitives.
+[![CMake CI](https://github.com/sinaxzq/ThreadPoolLab/actions/workflows/ci.yml/badge.svg)](https://github.com/sinaxzq/ThreadPoolLab/actions/workflows/ci.yml)
+
+A small C++ thread pool project focused on task submission, futures, shutdown behavior, and automated tests.
 
 ## What it demonstrates
 
