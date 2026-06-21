@@ -4,81 +4,78 @@
 
 ThreadPool::ThreadPool(int workerCount)
 {
-	for (int workerId = 0; workerId < workerCount; ++workerId)
-	{
-		workers.emplace_back(&ThreadPool::workerLoop , this , workerId);
-	}
+    for (int workerId = 0; workerId < workerCount; ++workerId)
+    {
+        workers.emplace_back(&ThreadPool::workerLoop, this, workerId);
+    }
 }
 
 ThreadPool::~ThreadPool()
 {
-	shutdown();
+    shutdown();
 }
 
 bool ThreadPool::submit(std::function<void(int)> task)
 {
-	{
-		std::lock_guard<std::mutex> lock(taskMutex);
+    {
+        std::lock_guard<std::mutex> lock(taskMutex);
 
-		if (stopRequested)
-		{
-			return false;
-		}
+        if (stopRequested)
+        {
+            return false;
+        }
 
-		taskQueue.push(std::move(task));
-	}
+        taskQueue.push(std::move(task));
+    }
 
-	taskCv.notify_one();
-	return true;
+    taskCv.notify_one();
+    return true;
 }
 
 void ThreadPool::workerLoop(int workerId)
 {
-	while (true)
-	{
-		std::function<void(int)> task;
+    while (true)
+    {
+        std::function<void(int)> task;
 
-		{
-			std::unique_lock<std::mutex> lock(taskMutex);
+        {
+            std::unique_lock<std::mutex> lock(taskMutex);
 
-			taskCv.wait(lock , [this]()
-			{
-				return !taskQueue.empty() || stopRequested;
-			});
+            taskCv.wait(lock, [this]() { return !taskQueue.empty() || stopRequested; });
 
-			if (taskQueue.empty() && stopRequested)
-			{
-				break;
-			}
+            if (taskQueue.empty() && stopRequested)
+            {
+                break;
+            }
 
-			task = std::move(taskQueue.front());
-			taskQueue.pop();
-		}
+            task = std::move(taskQueue.front());
+            taskQueue.pop();
+        }
 
-		task(workerId);
-	}
+        task(workerId);
+    }
 }
 
 void ThreadPool::shutdown()
 {
-	{
-		std::lock_guard<std::mutex> lock(taskMutex);
+    {
+        std::lock_guard<std::mutex> lock(taskMutex);
 
-		if (stopRequested)
-		{
-			return;
-		}
+        if (stopRequested)
+        {
+            return;
+        }
 
-		stopRequested = true;
-	}
+        stopRequested = true;
+    }
 
-	taskCv.notify_all();
+    taskCv.notify_all();
 
-	for (auto& worker : workers)
-	{
-		if (worker.joinable())
-		{
-			worker.join();
-		}
-	}
+    for (auto& worker : workers)
+    {
+        if (worker.joinable())
+        {
+            worker.join();
+        }
+    }
 }

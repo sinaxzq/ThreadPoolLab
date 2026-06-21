@@ -2,67 +2,63 @@
 
 #include <condition_variable>
 #include <functional>
-#include <mutex>
-#include <queue>
-#include <thread>
-#include <vector>
 #include <future>
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <stdexcept>
+#include <thread>
 #include <type_traits>
+#include <vector>
 
 class ThreadPool
 {
 public:
-	explicit ThreadPool(int workerCount);
+    explicit ThreadPool(int workerCount);
 
-	ThreadPool(const ThreadPool&) = delete;
-	ThreadPool& operator=(const ThreadPool&) = delete;
+    ThreadPool(const ThreadPool&) = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
 
-	ThreadPool(ThreadPool&&) = delete;
-	ThreadPool& operator=(ThreadPool&&) = delete;
+    ThreadPool(ThreadPool&&) = delete;
+    ThreadPool& operator=(ThreadPool&&) = delete;
 
-	~ThreadPool();
+    ~ThreadPool();
 
-	void shutdown();
-	
-	bool submit(std::function<void(int)> task);
+    void shutdown();
 
-	template <typename Func> auto submitFuture(Func task) -> 
-		std::future<std::invoke_result_t<Func , int>>
-	{
-		using Result = std::invoke_result_t<Func , int>;
+    bool submit(std::function<void(int)> task);
 
-		auto packagedTask =
-			std::make_shared<std::packaged_task<Result(int)>>(std::move(task));
+    template <typename Func>
+    auto submitFuture(Func task) -> std::future<std::invoke_result_t<Func, int>>
+    {
+        using Result = std::invoke_result_t<Func, int>;
 
-		std::future<Result> future = packagedTask->get_future();
+        auto packagedTask = std::make_shared<std::packaged_task<Result(int)>>(std::move(task));
 
-		{
-			std::lock_guard<std::mutex> lock(taskMutex);
+        std::future<Result> future = packagedTask->get_future();
 
-			if (stopRequested)
-			{
-				throw std::runtime_error("Cannot submit task after shutdown");
-			}
+        {
+            std::lock_guard<std::mutex> lock(taskMutex);
 
-			taskQueue.push([packagedTask](int workerId)
-			{
-				(*packagedTask)(workerId);
-			});
-		}
+            if (stopRequested)
+            {
+                throw std::runtime_error("Cannot submit task after shutdown");
+            }
 
-		taskCv.notify_one();
+            taskQueue.push([packagedTask](int workerId) { (*packagedTask)(workerId); });
+        }
 
-		return future;
-	}
+        taskCv.notify_one();
+
+        return future;
+    }
 
 private:
-	std::vector<std::thread> workers;
-	std::queue<std::function<void(int)>> taskQueue;
-	std::mutex taskMutex;
-	std::condition_variable taskCv;
-	bool stopRequested = false;
+    std::vector<std::thread> workers;
+    std::queue<std::function<void(int)>> taskQueue;
+    std::mutex taskMutex;
+    std::condition_variable taskCv;
+    bool stopRequested = false;
 
-	void workerLoop(int workerId);
+    void workerLoop(int workerId);
 };
